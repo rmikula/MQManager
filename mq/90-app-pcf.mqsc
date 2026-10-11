@@ -1,0 +1,5 @@
+* Oprávnění pro uživatele 'app', aby mohl přes PCF vypsat seznam front.
+* PUT na frontu příkazového serveru + DSP (zobrazení) na fronty DEV.** a queue manager.
+SET AUTHREC PROFILE('SYSTEM.ADMIN.COMMAND.QUEUE') PRINCIPAL('app') OBJTYPE(QUEUE) AUTHADD(DSP,INQ,PUT)
+SET AUTHREC PROFILE('DEV.**') PRINCIPAL('app') OBJTYPE(QUEUE) AUTHADD(DSP)
+SET AUTHREC PRINCIPAL('app') OBJTYPE(QMGR) AUTHADD(DSP)

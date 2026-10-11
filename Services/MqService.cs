@@ -1,5 +1,6 @@
 using System.Collections;
 using IBM.WMQ;
+using IBM.WMQ.PCF;
 using Microsoft.Extensions.Options;
 
 namespace MQManager.Services;
@@ -15,8 +16,12 @@ public record MqMessageDto(
 
 public record PutRequest(string Body, string? CorrelationId);
 
+public record MqQueueDto(string Name, string Type, int? Depth, int? MaxDepth, string Description);
+
 public class MqService(IOptions<MqOptions> options, ILogger<MqService> logger)
 {
+    private const string ReplyQueuePrefix = "MQMANAGER.";
+
     private readonly MqOptions _opt = options.Value;
 
     public string DefaultQueue => _opt.DefaultQueue;
@@ -37,6 +42,106 @@ public class MqService(IOptions<MqOptions> options, ILogger<MqService> logger)
             props.Add(MQC.USE_MQCSP_AUTHENTICATION_PROPERTY, true);
         }
         return new MQQueueManager(_opt.QueueManager, props);
+    }
+
+    /// <summary>
+    /// Seznam lokálních a alias front přes PCF (MQCMD_INQUIRE_Q).
+    /// Vrací jen fronty, na které má uživatel právo DSP.
+    /// </summary>
+    public List<MqQueueDto> ListQueues()
+    {
+        using var qm = Connect();
+        var cmdQueue = qm.AccessQueue(_opt.CommandQueue, MQC.MQOO_OUTPUT | MQC.MQOO_FAIL_IF_QUIESCING);
+        // Dočasná dynamická fronta pro odpovědi příkazového serveru, po zavření zanikne
+        var replyQueue = qm.AccessQueue(_opt.ModelQueue,
+            MQC.MQOO_INPUT_EXCLUSIVE | MQC.MQOO_FAIL_IF_QUIESCING, null, ReplyQueuePrefix + "*", null);
+        try
+        {
+            var pcf = new PCFMessage(MQC.MQCMD_INQUIRE_Q);
+            pcf.AddParameter(MQC.MQCA_Q_NAME, "*");
+            pcf.AddParameter(MQC.MQIACF_Q_ATTRS, new[]
+            {
+                MQC.MQCA_Q_NAME, MQC.MQIA_Q_TYPE, MQC.MQIA_CURRENT_Q_DEPTH,
+                MQC.MQIA_MAX_Q_DEPTH, MQC.MQCA_Q_DESC
+            });
+
+            var request = new MQMessage
+            {
+                Format = MQC.MQFMT_ADMIN,
+                MessageType = MQC.MQMT_REQUEST,
+                ReplyToQueueName = replyQueue.Name,
+                Expiry = 300 // 30 s
+            };
+            pcf.Write(request);
+            cmdQueue.Put(request, new MQPutMessageOptions());
+
+            var result = new List<MqQueueDto>();
+            var unauthorized = 0;
+            var gmo = new MQGetMessageOptions
+            {
+                Options = MQC.MQGMO_WAIT | MQC.MQGMO_FAIL_IF_QUIESCING,
+                WaitInterval = 10_000,
+                MatchOptions = MQC.MQMO_MATCH_CORREL_ID
+            };
+            while (true)
+            {
+                var reply = new MQMessage { CorrelationId = request.MessageId };
+                replyQueue.Get(reply, gmo);
+                var response = new PCFMessage(reply);
+
+                if (response.GetCompCode() != MQC.MQCC_OK)
+                {
+                    var reason = response.GetReason();
+                    // Na fronty bez práva DSP vrací příkazový server samostatnou chybovou odpověď – přeskočíme je
+                    if (reason == MQC.MQRC_NOT_AUTHORIZED)
+                        unauthorized++;
+                    // Žádná fronta neodpovídá filtru – není chyba
+                    else if (reason is not (MQC.MQRC_UNKNOWN_OBJECT_NAME or MQC.MQRCCF_NONE_FOUND))
+                        throw new MQException(response.GetCompCode(), reason);
+                }
+                else
+                {
+                    var queue = ToQueueDto(response);
+                    // Vlastní dočasné fronty pro odpovědi do seznamu nepatří
+                    if (queue is not null && !queue.Name.StartsWith(ReplyQueuePrefix))
+                        result.Add(queue);
+                }
+
+                if (response.GetControl() == MQC.MQCFC_LAST) break;
+            }
+            if (result.Count == 0 && unauthorized > 0)
+                throw new MQException(MQC.MQCC_FAILED, MQC.MQRC_NOT_AUTHORIZED);
+            if (unauthorized > 0)
+                logger.LogDebug("Skipped {Count} queues without DSP authority", unauthorized);
+            return result.OrderBy(q => q.Name, StringComparer.Ordinal).ToList();
+        }
+        finally
+        {
+            replyQueue.Close();
+            cmdQueue.Close();
+            qm.Disconnect();
+        }
+    }
+
+    private static MqQueueDto? ToQueueDto(PCFMessage response)
+    {
+        var values = response.GetParameters().ToDictionary(p => p.Parameter, p => p.GetValue());
+        var type = values.TryGetValue(MQC.MQIA_Q_TYPE, out var t) ? (int)t : 0;
+        // Zprávy lze číst jen z lokálních front a aliasů (model/remote/cluster vynecháváme)
+        var typeName = type switch
+        {
+            MQC.MQQT_LOCAL => "local",
+            MQC.MQQT_ALIAS => "alias",
+            _ => null
+        };
+        if (typeName is null) return null;
+
+        return new MqQueueDto(
+            ((string)values[MQC.MQCA_Q_NAME]).Trim(),
+            typeName,
+            values.TryGetValue(MQC.MQIA_CURRENT_Q_DEPTH, out var d) ? (int)d : null,
+            values.TryGetValue(MQC.MQIA_MAX_Q_DEPTH, out var m) ? (int)m : null,
+            values.TryGetValue(MQC.MQCA_Q_DESC, out var desc) ? ((string)desc).Trim() : "");
     }
 
     /// <summary>Nedestruktivní čtení (browse) zpráv z fronty.</summary>

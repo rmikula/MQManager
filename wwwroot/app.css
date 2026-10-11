@@ -27,3 +27,26 @@ td.body pre { margin: 0; white-space: pre-wrap; word-break: break-word; max-heig
 .muted { color: var(--muted); font-weight: normal; }
 #toast { position: fixed; bottom: 20px; right: 20px; padding: 10px 16px; border-radius: 6px; color: #fff; background: #24a148; max-width: 480px; }
 #toast.error { background: var(--danger); }
+
+/* Výběr fronty s vyhledáváním */
+.combo { position: relative; }
+.combo input { width: 340px; font-family: ui-monospace, monospace; }
+.combo-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 10;
+  min-width: 100%; width: 460px; max-height: 360px; overflow-y: auto;
+  margin: 0; padding: 4px 0; list-style: none;
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.combo-list li { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; }
+.combo-list li.active { background: #e8f0fe; }
+.combo-list li.info { color: var(--muted); cursor: default; }
+.combo-list .qname { flex: 1; font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
+.combo-list .qname mark { background: #fde68a; color: inherit; border-radius: 2px; }
+.combo-list .qdesc { display: block; font-family: system-ui, sans-serif; font-size: 11px; color: var(--muted); }
+.badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: #eef0f3; color: var(--muted); }
+.badge.alias { background: #f3e8ff; color: #6b21a8; }
+.depth { font-size: 12px; min-width: 48px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.depth.nonzero { color: var(--text); font-weight: 600; }
+button.icon { padding: 6px 10px; background: #393939; }
+label.check { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #c6c6c6; cursor: pointer; }

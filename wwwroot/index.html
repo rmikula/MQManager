@@ -11,7 +11,14 @@
     <h1>MQ Manager</h1>
     <form id="queueForm" class="row">
       <label for="queue">Fronta</label>
-      <input id="queue" required placeholder="DEV.QUEUE.1">
+      <div class="combo" id="combo">
+        <input id="queue" required autocomplete="off" spellcheck="false"
+               placeholder="Hledat frontu…" role="combobox" aria-expanded="false"
+               aria-controls="queueList" aria-autocomplete="list">
+        <ul id="queueList" class="combo-list" role="listbox" hidden></ul>
+      </div>
+      <button type="button" id="refreshQueues" class="icon" title="Obnovit seznam front" aria-label="Obnovit seznam front">↻</button>
+      <label class="check"><input type="checkbox" id="showSystem"> Systémové</label>
       <button type="submit">Načíst</button>
       <button type="button" id="clearBtn" class="danger">Vyprázdnit frontu</button>
     </form>

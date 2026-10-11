@@ -27,11 +27,25 @@ Sekce `MQ` v `appsettings.json` (lze přepsat proměnnými prostředí, např. `
 | User / Password | app / – | Přihlášení (MQCSP); prázdný User = bez autentizace |
 | DefaultQueue | DEV.QUEUE.1 | Fronta předvyplněná v UI |
 | MaxBrowse | 100 | Max. počet zobrazených zpráv |
+| CommandQueue | SYSTEM.ADMIN.COMMAND.QUEUE | Fronta příkazového serveru (PCF) pro seznam front |
+| ModelQueue | DEV.APP.MODEL.QUEUE | Modelová fronta pro dočasnou frontu s odpověďmi PCF |
+
+### Seznam front
+
+Seznam front se načítá přes PCF (`MQCMD_INQUIRE_Q`). Uživatel potřebuje:
+
+- `PUT` na `SYSTEM.ADMIN.COMMAND.QUEUE`,
+- `DSP` na fronty, které má vidět (ostatní se v seznamu nezobrazí),
+- `GET`/`DSP` na modelovou frontu (`ModelQueue`).
+
+Pro lokální Docker MQ to nastavuje [mq/90-app-pcf.mqsc](mq/90-app-pcf.mqsc).
+Když oprávnění chybí, UI zobrazí upozornění a název fronty lze zadat ručně.
 
 ## REST API
 
 | Metoda | URL | Popis |
 |---|---|---|
+| GET | `/api/queues` | Seznam lokálních a alias front s počtem zpráv |
 | GET | `/api/queues/{queue}/messages?max=N` | Browse zpráv (nedestruktivně) |
 | POST | `/api/queues/{queue}/messages` | Vložení zprávy `{ "body": "...", "correlationId": "hex" }` |
 | DELETE | `/api/queues/{queue}/messages/{messageId}` | Smazání zprávy podle MessageId (hex) |

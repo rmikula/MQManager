@@ -34,6 +34,8 @@ var api = app.MapGroup("/api");
 
 api.MapGet("/config", (MqService mq) => new { defaultQueue = mq.DefaultQueue });
 
+api.MapGet("/queues", (MqService mq) => Results.Ok(mq.ListQueues()));
+
 api.MapGet("/queues/{queue}/messages", (string queue, int? max, MqService mq) =>
     Results.Ok(mq.Browse(queue, max)));
 

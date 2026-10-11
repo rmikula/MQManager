@@ -70,6 +70,7 @@ function renderRow(m) {
       await api("DELETE", `${queueUrl()}/${m.messageId}`);
       toast("Zpráva smazána.");
       loadMessages();
+      loadQueues();
     } catch (e) {
       del.disabled = false;
       toast(e.message, true);
@@ -79,9 +80,192 @@ function renderRow(m) {
   return tr;
 }
 
+// ---------- Výběr fronty s vyhledáváním ----------
+
+const queueList = $("queueList");
+const showSystem = $("showSystem");
+let queues = [];          // seznam front z /api/queues
+let queuesError = null;   // chyba při načítání seznamu (např. chybí oprávnění)
+let queuesLoaded = false;
+let filterText = "";      // text, podle kterého se filtruje
+let visible = [];         // aktuálně zobrazené položky
+let activeIndex = -1;
+
+const store = {
+  get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem(key, value); } catch {} },
+};
+
+async function loadQueues() {
+  const btn = $("refreshQueues");
+  btn.disabled = true;
+  try {
+    queues = await api("GET", "/api/queues");
+    queuesError = null;
+  } catch (e) {
+    queues = [];
+    queuesError = e.message;
+  } finally {
+    btn.disabled = false;
+    queuesLoaded = true;
+  }
+  if (!queueList.hidden) renderQueueList();
+}
+
+function isSystem(name) {
+  return name.startsWith("SYSTEM.");
+}
+
+function filteredQueues() {
+  const f = filterText.trim().toUpperCase();
+  return queues.filter((q) =>
+    (showSystem.checked || !isSystem(q.name)) &&
+    (!f || q.name.toUpperCase().includes(f) || q.description.toUpperCase().includes(f)));
+}
+
+// Zvýrazní hledaný text v názvu fronty (bez innerHTML kvůli bezpečnosti)
+function highlight(el, text, query) {
+  const i = query ? text.toUpperCase().indexOf(query.toUpperCase()) : -1;
+  if (i < 0) { el.textContent = text; return; }
+  const mark = document.createElement("mark");
+  mark.textContent = text.slice(i, i + query.length);
+  el.append(text.slice(0, i), mark, text.slice(i + query.length));
+}
+
+function infoItem(text) {
+  const li = document.createElement("li");
+  li.className = "info";
+  li.textContent = text;
+  return li;
+}
+
+function renderQueueList() {
+  visible = filteredQueues();
+  if (activeIndex >= visible.length) activeIndex = visible.length - 1;
+
+  const items = visible.map((q, i) => {
+    const li = document.createElement("li");
+    li.role = "option";
+    li.id = `q-opt-${i}`;
+    if (i === activeIndex) li.className = "active";
+
+    const name = document.createElement("span");
+    name.className = "qname";
+    highlight(name, q.name, filterText.trim());
+    if (q.description) {
+      const desc = document.createElement("span");
+      desc.className = "qdesc";
+      desc.textContent = q.description;
+      name.append(desc);
+    }
+
+    const badge = document.createElement("span");
+    badge.className = `badge ${q.type}`;
+    badge.textContent = q.type;
+
+    const depth = document.createElement("span");
+    depth.className = "depth" + (q.depth ? " nonzero" : "");
+    depth.textContent = q.depth ?? "";
+    depth.title = q.depth != null ? `Zpráv ve frontě (max. ${q.maxDepth})` : "";
+
+    li.append(name, badge, depth);
+    // mousedown místo click, aby výběr proběhl dřív, než input ztratí fokus
+    li.onmousedown = (e) => { e.preventDefault(); selectQueue(q.name); };
+    li.onmousemove = () => { if (activeIndex !== i) { activeIndex = i; updateActive(); } };
+    return li;
+  });
+
+  if (queuesError) items.unshift(infoItem(`Seznam front nelze načíst: ${queuesError}. Název lze zadat ručně.`));
+  else if (!visible.length) items.push(infoItem(queuesLoaded ? "Žádná fronta neodpovídá hledání." : "Načítám…"));
+
+  queueList.replaceChildren(...items);
+  updateActive();
+}
+
+function updateActive() {
+  [...queueList.querySelectorAll("li[role=option]")].forEach((li, i) =>
+    li.classList.toggle("active", i === activeIndex));
+  const active = $(`q-opt-${activeIndex}`);
+  active?.scrollIntoView({ block: "nearest" });
+  queueInput.setAttribute("aria-activedescendant", active ? active.id : "");
+}
+
+function openList() {
+  if (!queueList.hidden) return;
+  queueList.hidden = false;
+  queueInput.setAttribute("aria-expanded", "true");
+  renderQueueList();
+}
+
+function closeList() {
+  queueList.hidden = true;
+  queueInput.setAttribute("aria-expanded", "false");
+  activeIndex = -1;
+}
+
+function selectQueue(name) {
+  queueInput.value = name;
+  closeList();
+  store.set("queue", name);
+  loadMessages();
+}
+
+// Při otevření zobrazit všechny fronty, filtrovat se začne až psaním.
+// Text se označí, takže psaní rovnou nahradí aktuální název.
+queueInput.onfocus = () => {
+  filterText = "";
+  activeIndex = -1;
+  queueInput.select();
+  openList();
+};
+queueInput.onclick = () => openList();
+queueInput.oninput = () => {
+  filterText = queueInput.value;
+  activeIndex = filterText.trim() ? 0 : -1;
+  openList();
+  renderQueueList();
+};
+queueInput.onblur = () => closeList();
+queueInput.onkeydown = (e) => {
+  switch (e.key) {
+    case "ArrowDown":
+      e.preventDefault();
+      openList();
+      activeIndex = Math.min(activeIndex + 1, visible.length - 1);
+      updateActive();
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      updateActive();
+      break;
+    case "Enter":
+      if (!queueList.hidden && visible[activeIndex]) {
+        e.preventDefault();
+        selectQueue(visible[activeIndex].name);
+      }
+      break;
+    case "Escape":
+      closeList();
+      break;
+  }
+};
+
+showSystem.onchange = () => {
+  store.set("showSystem", showSystem.checked ? "1" : "");
+  if (!queueList.hidden) renderQueueList();
+};
+
+$("refreshQueues").onclick = async () => {
+  await loadQueues();
+  if (queuesError) toast(`Seznam front nelze načíst: ${queuesError}`, true);
+  else toast(`Načteno front: ${queues.length}.`);
+};
+
 $("queueForm").onsubmit = (e) => {
   e.preventDefault();
-  localStorage.setItem("queue", queueInput.value.trim());
+  closeList();
+  store.set("queue", queueInput.value.trim());
   loadMessages();
 };
 
@@ -95,6 +279,7 @@ $("putForm").onsubmit = async (e) => {
     toast(`Zpráva odeslána (${r.messageId}).`);
     $("body").value = "";
     loadMessages();
+    loadQueues();
   } catch (err) {
     toast(err.message, true);
   }
@@ -107,15 +292,16 @@ $("clearBtn").onclick = async () => {
     const r = await api("DELETE", queueUrl());
     toast(`Smazáno zpráv: ${r.deleted}.`);
     loadMessages();
+    loadQueues();
   } catch (e) {
     toast(e.message, true);
   }
 };
 
 (async () => {
-  let saved = null;
-  try { saved = localStorage.getItem("queue"); } catch {}
+  showSystem.checked = store.get("showSystem") === "1";
+  loadQueues();
   const cfg = await api("GET", "/api/config").catch(() => ({}));
-  queueInput.value = saved || cfg.defaultQueue || "";
+  queueInput.value = store.get("queue") || cfg.defaultQueue || "";
   if (queueInput.value) loadMessages();
 })();
