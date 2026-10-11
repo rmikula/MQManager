@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MQ Manager</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header>
+    <h1>MQ Manager</h1>
+    <form id="queueForm" class="row">
+      <label for="queue">Fronta</label>
+      <input id="queue" required placeholder="DEV.QUEUE.1">
+      <button type="submit">Načíst</button>
+      <button type="button" id="clearBtn" class="danger">Vyprázdnit frontu</button>
+    </form>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Nová zpráva</h2>
+      <form id="putForm">
+        <textarea id="body" rows="5" required placeholder="Text zprávy…"></textarea>
+        <div class="row">
+          <input id="correlId" placeholder="CorrelationId (hex, volitelné)">
+          <button type="submit">Odeslat</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Zprávy <span id="count" class="muted"></span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Čas vložení</th><th>MessageId</th><th>Formát</th><th>Délka</th><th>Obsah</th><th></th></tr>
+          </thead>
+          <tbody id="messages"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

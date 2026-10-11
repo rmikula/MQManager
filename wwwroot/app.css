@@ -1,0 +1,29 @@
+:root {
+  --bg: #f5f6f8; --card: #fff; --text: #1d2330; --muted: #6b7280;
+  --border: #dde1e7; --accent: #0f62fe; --danger: #da1e28;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+header { background: #161616; color: #fff; padding: 12px 24px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+main { padding: 24px; display: grid; gap: 24px; max-width: 1400px; margin: 0 auto; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; }
+.card h2 { margin: 0 0 12px; font-size: 16px; }
+.row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+header .row { margin: 0; }
+input, textarea { font: inherit; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; }
+textarea { width: 100%; font-family: ui-monospace, monospace; resize: vertical; }
+#correlId { flex: 1; font-family: ui-monospace, monospace; }
+button { font: inherit; padding: 6px 14px; border: 0; border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
+button.danger { background: var(--danger); }
+button.small { padding: 2px 10px; font-size: 12px; }
+button:disabled { opacity: .5; cursor: default; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); white-space: nowrap; }
+td.mono { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all; }
+td.body pre { margin: 0; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow: auto; font-size: 12px; }
+.muted { color: var(--muted); font-weight: normal; }
+#toast { position: fixed; bottom: 20px; right: 20px; padding: 10px 16px; border-radius: 6px; color: #fff; background: #24a148; max-width: 480px; }
+#toast.error { background: var(--danger); }
